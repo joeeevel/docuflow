@@ -6,6 +6,7 @@ import { Job as JobModel } from "../models/Job.js";
 import { processMedia } from "./media.js";
 import { runAiAnalysis } from "./ai.js";
 import type { AIOutput, GeneratedDoc } from "../types/index.js";
+import type { FrameSample } from "./media.js";
 
 interface VideoJobData {
   jobId: string;
@@ -60,7 +61,7 @@ async function processVideoJob(job: Job<VideoJobData>): Promise<void> {
     const generatedDoc: GeneratedDoc = {
       title: aiResult.title,
       summary: aiResult.summary,
-      markdownPayload: buildMarkdown(aiResult),
+      markdownPayload: buildMarkdown(aiResult, frames),
       assets: aiResult.steps
         .filter((s) => s.associatedImageTimestamp)
         .map((s) => ({
@@ -85,7 +86,9 @@ async function processVideoJob(job: Job<VideoJobData>): Promise<void> {
   }
 }
 
-export function buildMarkdown(ai: AIOutput): string {
+export function buildMarkdown(ai: AIOutput, frames?: FrameSample[]): string {
+  const frameMap = new Map(frames?.map((f) => [f.timestamp, f.base64]) ?? []);
+
   const lines: string[] = [];
   lines.push(`# ${ai.title}\n`);
   lines.push(`${ai.summary}\n`);
@@ -108,7 +111,12 @@ export function buildMarkdown(ai: AIOutput): string {
       lines.push("```\n");
     }
     if (step.associatedImageTimestamp) {
-      lines.push(`> 📸 Frame at ${step.associatedImageTimestamp}\n`);
+      const b64 = frameMap.get(step.associatedImageTimestamp);
+      if (b64) {
+        lines.push(`![Frame at ${step.associatedImageTimestamp}](data:image/jpeg;base64,${b64})\n`);
+      } else {
+        lines.push(`> 📸 Frame at ${step.associatedImageTimestamp}\n`);
+      }
     }
   }
 
