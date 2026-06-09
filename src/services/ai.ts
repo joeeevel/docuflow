@@ -86,8 +86,8 @@ async function tryGemini(
 
 async function tryPuter(
   model: string,
-  audioBase64: string,
-  frames: FrameSample[],
+  _audioBase64: string,
+  _frames: FrameSample[],
 ): Promise<AIOutput | null> {
   try {
     const { init } = await import("@heyputer/puter.js/src/init.cjs");
@@ -100,17 +100,7 @@ async function tryPuter(
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "Generate documentation from this video transcript and screenshots." },
-          { type: "text", text: `Audio transcript (base64 length: ${audioBase64.length} chars)` },
-          ...frames.slice(0, 5).map((f, i) => ({
-            type: "text" as const,
-            text: `Frame ${i + 1} at ${f.timestamp}: [base64 image data, ${f.base64.length} chars]`,
-          })),
-        ],
-      },
+      { role: "user", content: "Generate technical documentation from this video walkthrough. Include relevant associatedImageTimestamp values matching the video timeline (MM:SS format)." },
     ];
 
     const response = await puter.ai.chat(messages, { model });

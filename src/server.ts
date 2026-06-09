@@ -10,7 +10,16 @@ import { setupWebSocket } from "./websocket/handler.js";
 
 export const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https://i.ytimg.com", "https://img.youtube.com"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+    },
+  },
+}));
 app.use(cors({ origin: env.corsOrigin }));
 app.use(express.json());
 
