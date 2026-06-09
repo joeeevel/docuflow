@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:frontend": "npm run dev --prefix frontend",
     "start": "node dist/server.js",
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run __tests__/unit",
     "test:int": "vitest run __tests__/integration",
+    "worker": "tsx src/worker.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
