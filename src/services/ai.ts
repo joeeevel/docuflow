@@ -148,17 +148,17 @@ export async function runAiAnalysis(
   const audioBuffer = await fs.readFile(audioPath);
   const audioBase64 = audioBuffer.toString("base64");
 
-  // Try Gemini models first (multimodal with audio + images)
-  for (const model of GEMINI_MODELS) {
-    console.log(`Trying Gemini: ${model}`);
-    const result = await tryGemini(model, audioBase64, frames);
-    if (result) return result;
-  }
-
-  // Fallback to Puter.js Claude models (text-only prompt)
+  // Try Puter.js Claude models first
   for (const model of PUTER_MODELS) {
     console.log(`Trying Puter: ${model}`);
     const result = await tryPuter(model, audioBase64, frames);
+    if (result) return result;
+  }
+
+  // Fallback to Gemini models (multimodal with audio + images)
+  for (const model of GEMINI_MODELS) {
+    console.log(`Trying Gemini: ${model}`);
+    const result = await tryGemini(model, audioBase64, frames);
     if (result) return result;
   }
 
