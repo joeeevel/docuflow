@@ -4,6 +4,9 @@ import type { AIOutput } from "../types/index.js";
 import type { FrameSample } from "./media.js";
 import fs from "node:fs/promises";
 
+const MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
+const MAX_RETRIES = 3;
+
 const aiClient = new GoogleGenAI({ apiKey: env.geminiApiKey });
 
 const SYSTEM_PROMPT = `You are a technical documentation generator. Given a transcript and visual frames from a video walkthrough, produce a structured JSON document following this exact schema:
@@ -23,6 +26,61 @@ const SYSTEM_PROMPT = `You are a technical documentation generator. Given a tran
 }
 Return ONLY valid JSON. No markdown wrapping.`;
 
+async function tryModel(
+  model: string,
+  audioBase64: string,
+  frames: FrameSample[],
+): Promise<AIOutput | null> {
+  const contents = [
+    {
+      role: "user" as const,
+      parts: [
+        { text: SYSTEM_PROMPT },
+        {
+          inlineData: { mimeType: "audio/mpeg", data: audioBase64 },
+        },
+        ...frames.slice(0, 5).map((f) => ({
+          inlineData: { mimeType: "image/jpeg" as const, data: f.base64 },
+        })),
+      ],
+    },
+  ];
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await aiClient.models.generateContent({ model, contents });
+      const text = response.text;
+      if (!text) return null;
+
+      const cleaned = text
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      const parsed: AIOutput = JSON.parse(cleaned);
+      if (!parsed.title || !parsed.summary || !Array.isArray(parsed.steps)) return null;
+      return parsed;
+    } catch (err) {
+      const isOverload = err instanceof Error && (
+        err.message.includes("503") ||
+        err.message.includes("UNAVAILABLE") ||
+        err.message.includes("high demand")
+      );
+
+      if (!isOverload || attempt === MAX_RETRIES) {
+        console.warn(`Model ${model} attempt ${attempt} failed:`, err instanceof Error ? err.message : err);
+        return null;
+      }
+
+      const delay = attempt * 2000;
+      console.warn(`Model ${model} overloaded, retry ${attempt}/${MAX_RETRIES} in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  return null;
+}
+
 export async function runAiAnalysis(
   audioPath: string,
   frames: FrameSample[],
@@ -30,47 +88,14 @@ export async function runAiAnalysis(
   const audioBuffer = await fs.readFile(audioPath);
   const audioBase64 = audioBuffer.toString("base64");
 
-  const contents = [
-    {
-      role: "user" as const,
-      parts: [
-        { text: SYSTEM_PROMPT },
-        {
-          inlineData: {
-            mimeType: "audio/mpeg",
-            data: audioBase64,
-          },
-        },
-        ...frames.slice(0, 5).map((f) => ({
-          inlineData: {
-            mimeType: "image/jpeg" as const,
-            data: f.base64,
-          },
-        })),
-      ],
-    },
-  ];
+  const errors: string[] = [];
 
-  const response = await aiClient.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents,
-  });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error("AI returned empty response");
+  for (const model of MODELS) {
+    console.log(`Trying AI model: ${model}`);
+    const result = await tryModel(model, audioBase64, frames);
+    if (result) return result;
+    errors.push(`${model} failed`);
   }
 
-  const cleaned = text
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  const parsed: AIOutput = JSON.parse(cleaned);
-
-  if (!parsed.title || !parsed.summary || !Array.isArray(parsed.steps)) {
-    throw new Error("AI response missing required fields");
-  }
-
-  return parsed;
+  throw new Error(`All AI models unavailable. Last errors: ${errors.join("; ")}`);
 }
