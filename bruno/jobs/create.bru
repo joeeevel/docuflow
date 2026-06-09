@@ -1,0 +1,28 @@
+meta {
+  name: Create Job
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{BASE_URL}}/api/jobs
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+body:json {
+  {
+    "sourceUrl": "https://loom.com/share/example-video"
+  }
+}
+
+assert {
+  res.status: eq 202
+  res.body.jobId: isPresent
+}
+
+script:post-response {
+  bru.setVar("jobId", res.body.jobId);
+}

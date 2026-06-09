@@ -1,0 +1,18 @@
+meta {
+  name: Get Job
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{BASE_URL}}/api/jobs/{{jobId}}
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.job: isPresent
+}

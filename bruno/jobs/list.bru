@@ -1,0 +1,18 @@
+meta {
+  name: List Jobs
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{BASE_URL}}/api/jobs
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.jobs: isArray
+}

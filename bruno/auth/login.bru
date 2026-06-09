@@ -1,0 +1,25 @@
+meta {
+  name: Login
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BASE_URL}}/api/auth/login
+}
+
+body:json {
+  {
+    "email": "test@docuflow.dev",
+    "password": "password123"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.token: isPresent
+}
+
+script:post-response {
+  bru.setVar("authToken", res.body.token);
+}
