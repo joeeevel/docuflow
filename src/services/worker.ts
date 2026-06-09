@@ -26,6 +26,14 @@ export function startWorker(): Worker {
     },
   );
 
+  worker.on("error", (err) => {
+    console.error("Worker error:", err.message);
+  });
+
+  worker.on("failed", (job, err) => {
+    console.error(`Job ${job?.id} failed:`, err?.message);
+  });
+
   return worker;
 }
 
@@ -67,11 +75,11 @@ async function processVideoJob(job: Job<VideoJobData>): Promise<void> {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Job ${jobId} failed:`, message);
     await JobModel.findByIdAndUpdate(jobId, {
       status: "failed",
       errorLog: message,
     });
-    throw error;
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }

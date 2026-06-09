@@ -39,6 +39,14 @@ async function start(): Promise<void> {
   }
 }
 
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
 const isTest = process.env.NODE_ENV === "test" || process.env.VITEST;
 if (!isTest) {
   start();
