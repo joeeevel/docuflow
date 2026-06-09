@@ -86,8 +86,27 @@ async function processVideoJob(job: Job<VideoJobData>): Promise<void> {
   }
 }
 
+function timestampToSeconds(ts: string): number {
+  const [m, s] = ts.split(":").map(Number);
+  return (m ?? 0) * 60 + (s ?? 0);
+}
+
+function findClosestFrame(ts: string, frames: FrameSample[]): FrameSample | undefined {
+  const target = timestampToSeconds(ts);
+  let closest: FrameSample | undefined;
+  let minDiff = Infinity;
+  for (const f of frames) {
+    const diff = Math.abs(timestampToSeconds(f.timestamp) - target);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = f;
+    }
+  }
+  return minDiff <= 30 ? closest : undefined;
+}
+
 export function buildMarkdown(ai: AIOutput, frames?: FrameSample[]): string {
-  const frameMap = new Map(frames?.map((f) => [f.timestamp, f.base64]) ?? []);
+  const frameList = frames ?? [];
 
   const lines: string[] = [];
   lines.push(`# ${ai.title}\n`);
@@ -101,6 +120,8 @@ export function buildMarkdown(ai: AIOutput, frames?: FrameSample[]): string {
     lines.push("");
   }
 
+  const usedFrames = new Set<string>();
+
   lines.push("## Steps\n");
   for (const step of ai.steps) {
     lines.push(`### Step ${step.stepNumber}: ${step.actionTitle}\n`);
@@ -111,12 +132,19 @@ export function buildMarkdown(ai: AIOutput, frames?: FrameSample[]): string {
       lines.push("```\n");
     }
     if (step.associatedImageTimestamp) {
-      const b64 = frameMap.get(step.associatedImageTimestamp);
-      if (b64) {
-        lines.push(`![Frame at ${step.associatedImageTimestamp}](data:image/jpeg;base64,${b64})\n`);
-      } else {
-        lines.push(`> 📸 Frame at ${step.associatedImageTimestamp}\n`);
+      const match = findClosestFrame(step.associatedImageTimestamp, frameList);
+      if (match) {
+        usedFrames.add(match.timestamp);
+        lines.push(`![Screenshot at ${match.timestamp}](data:image/jpeg;base64,${match.base64})\n`);
       }
+    }
+  }
+
+  const unused = frameList.filter((f) => !usedFrames.has(f.timestamp));
+  if (unused.length > 0) {
+    lines.push("## Additional Screenshots\n");
+    for (const f of unused) {
+      lines.push(`![Frame at ${f.timestamp}](data:image/jpeg;base64,${f.base64})\n`);
     }
   }
 
